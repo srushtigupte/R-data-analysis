@@ -1,0 +1,134 @@
+---
+title: "Assignment 7"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+```{r}
+library(rvest)
+library(httr)
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+Question 1.
+1. Scrape the data from the webpage and extract the following fields: Country, < $1.90, < $3.20, < $5.50, Year and Continent. Prepare the data for analysis and ensure that the columns have meaningful names.
+
+```{r}
+url = 'https://en.m.wikipedia.org/wiki/List_of_countries_by_percentage_of_population_living_in_poverty'
+webpage = read_html(url)
+wiki_table = webpage %>%
+  html_nodes("table") %>%
+  .[[2]] %>%
+  html_table(header = TRUE, fill = TRUE)
+```
+The first chunk of the code is reading the table from the link mentioned.
+In the chunk below we are changing the names of the columns to a more manageable format, as names before has space and special character which will be difficult to call in R.
+```{r}
+colnames(wiki_table) <- c('Country', 'less_than_1.90', 'less_than_3.20', 'less_than_5.50', 'Year', 'Continent')
+str(wiki_table)
+```
+Through str(), three columns which should be integer in datatype are as character, and also it has % sign which will not allow us to perform operation on the data. So below is the code chunks that solves these problem.
+```{r}
+wiki_table2 <- wiki_table %>%
+  separate(less_than_3.20, into = c("less_than_3.20"), sep = "%") %>%
+  separate(less_than_1.90, into = c("less_than_1.90"), sep = "%") %>%
+  separate(less_than_5.50, into = c("less_than_5.50"), sep = "%")
+```
+```{r}
+wiki_table2$less_than_1.90 <- as.integer(wiki_table2$less_than_1.90)
+wiki_table2$less_than_3.20 <- as.integer(wiki_table2$less_than_3.20)
+wiki_table2$less_than_5.50 <- as.integer(wiki_table2$less_than_5.50)
+str(wiki_table2)
+```
+Made a new dataframe named wiki_table2 so that there is no overlap of data while changing datatye and removing % sign and get a clean data.
+
+2. Calculate the mean and the standard deviation of the percent of the population living under $5.50 per day for each continent. Perform a comparative analysis (i.e. explanation) of the data from each continent.
+
+```{r}
+wiki_table2 %>%
+  group_by(Continent) %>%
+  mutate(mean_percentage = mean(less_than_5.50), sd_percentage = sd(less_than_5.50)) %>%
+  distinct(Continent, mean_percentage, sd_percentage)
+```
+Simple dplyr functions were applied to to extract mean and standard deviation of all continents.
+Out of all continents, Europe has the least mean percentage of 4.2% population recieving daily wage below $5.50,and it also has the least standard deviation (8.8) that means the data is concentrated towards the mean value.
+
+3. What are the 10 countries with the highest percentage of the population having an income of less than $5.50 per day? Using a suitable chart, display the country name, the percentage and color- code by the Continent. Summarize your findings.
+
+```{r}
+wiki_table2 %>%
+  select(Country, less_than_5.50, Continent) %>%
+  arrange(desc(less_than_5.50)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x = Country, y = less_than_5.50, color = Continent)) + geom_point() + theme(axis.text.x = element_text(angle = 90) )
+```
+The 10 countries, Burundi, Central African Republic, Congo, Liberia, Madagascar, Malawi, Mozambique, Somalia, South Sudan, Uzbekistan are the top countries with highest percentage of population having income less than $5.5.
+According to the graph, all countries are from Africa, except Uzbekistan which is an Asian country.
+
+4. Explore the countries with the lowest percentage of the population having an income of less than $5.50 per day. What are the 5 countries with the lowest percentage, and how does the results compare to the other income groups (i.e. $1.90 and $3.20)
+
+```{r}
+low_5.5 <- wiki_table2 %>%
+  select(Country, Year, less_than_1.90, less_than_3.20, less_than_5.50) %>%
+  arrange(less_than_5.50) %>%
+  slice(1:5) %>%
+  arrange(Year)
+low_1.9 <- wiki_table2 %>%
+  select(Country, Year, less_than_1.90, less_than_3.20, less_than_5.50) %>%
+  arrange(less_than_1.90) %>%
+  slice(1:5) %>%
+  arrange(Year)
+low_3.2 <- wiki_table2 %>%
+  select(Country, Year, less_than_1.90, less_than_3.20, less_than_5.50) %>%
+  arrange(less_than_3.20) %>%
+  slice(1:5) %>%
+  arrange(Year)
+
+plot_1.9 <- ggplot(data = low_1.9, mapping = aes(x = Year)) + geom_line(mapping = aes(y = less_than_1.90), color = "blue") + geom_point(mapping = aes(y = less_than_1.90, color = Country)) +
+  geom_line(mapping = aes(y = less_than_3.20), color = "red") +
+  geom_point(mapping = aes(y = less_than_3.20, color = Country)) +
+  geom_line(mapping = aes(y = less_than_5.50), color = "green") +
+  geom_point(mapping = aes(y = less_than_5.50, color = Country)) + 
+  labs(y = "Percentage of Population", title = "Data of Top 5 Countries with < $1.90 Income Per Day")
+
+plot_3.2 <- ggplot(data = low_3.2, mapping = aes(x = Year)) + geom_line(mapping = aes(y = less_than_1.90), color = "blue") + geom_point(mapping = aes(y = less_than_1.90, color = Country)) +
+  geom_line(mapping = aes(y = less_than_3.20), color = "red") +
+  geom_point(mapping = aes(y = less_than_3.20, color = Country)) +
+  geom_line(mapping = aes(y = less_than_5.50), color = "green") +
+  geom_point(mapping = aes(y = less_than_5.50, color = Country)) + 
+  labs(y = "Percentage of Population", title = "Data of Top 5 Countries with < $3.20 Income Per Day")
+
+plot_5.5 <- ggplot(data = low_5.5, mapping = aes(x = Year)) + geom_line(mapping = aes(y = less_than_1.90), color = "blue") + geom_point(mapping = aes(y = less_than_1.90, color = Country)) +
+  geom_line(mapping = aes(y = less_than_3.20), color = "red") +
+  geom_point(mapping = aes(y = less_than_3.20, color = Country)) +
+  geom_line(mapping = aes(y = less_than_5.50), color = "green") +
+  geom_point(mapping = aes(y = less_than_5.50, color = Country)) + 
+  labs(y = "Percentage of Population", title = "Data of Top 5 Countries with < $5.50 Income Per Day")
+
+ggarrange(plot_1.9, plot_3.2, plot_5.5)
+```
+Countries with the lowest percentage of the population having an income of less than $5.50 per day are Australia, Austria, Belarus, Belgium, and Canada. For this filtered data, percentage of the population having an income of less than $1.9 and $3.2 per day is also zero.
+However, this is not the case for other two cases as can be seen in graph.
+
+5. Extract the data for any two continents of your choice. Fore each continent, visualize the percent of the population living on less than $1.90, $3.20 and $5.50 using box plots. Compare and contrast the results, while ensuring that you discuss the distribution, skew and any outliers that are evident.
+
+```{r}
+box_1.90 <- wiki_table2 %>%
+  filter(Continent=='Asia'| Continent=='Oceania') %>%
+  ggplot(aes(x = Continent, y = less_than_1.90)) + geom_boxplot()
+box_3.20 <- wiki_table2 %>%
+  filter(Continent=='Asia' | Continent=='Oceania') %>%
+  ggplot(aes(x = Continent, y = less_than_3.20)) + geom_boxplot()
+box_5.50 <- wiki_table2 %>%
+  filter(Continent=='Asia' | Continent=='Oceania') %>%
+  ggplot(aes(x = Continent, y = less_than_5.50)) + geom_boxplot()
+```
+```{r}
+ggarrange(box_1.90, box_3.20, box_5.50)
+```
+Box plot of less than 1.9 shows Asia to have minimum distribution and and all data concentrated towards mean, (~0), but it has outliers going till 60%. In the third plot for less than 5.5 Asia has maximum distribution and has no outliers.
